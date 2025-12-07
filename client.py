@@ -71,3 +71,32 @@ class SimpleNewsClient:
         except Exception as e:
             messagebox.showerror("Error", f"Communication error: {e}")
             return None
+         # Search headlines by keyword
+    def search_headlines(self):
+        kw = self.keyword_entry.get().strip()
+        if not kw:
+            messagebox.showwarning("Warning", "Enter keyword")
+            return
+        resp = self.send_request("headlines_keyword", {"keyword": kw})
+        self.listbox.delete(0, tk.END)
+        self.details_text.delete("1.0", tk.END)
+        self.items = resp.get("items", []) if resp else []
+        if not self.items:
+            self.listbox.insert(tk.END, "No results found")
+        for item in self.items:
+            self.listbox.insert(tk.END, item.get("title", ""))
+
+    # Show details when selecting an item
+    def show_details(self, event):
+        if not self.items:
+            return
+        idx = self.listbox.curselection()
+        if not idx:
+            return
+        item = self.items[idx[0]]
+        self.details_text.delete("1.0", tk.END)
+        self.details_text.insert(tk.END, f"Title: {item.get('title','')}\n")
+        self.details_text.insert(tk.END, f"Source: {item.get('source_name','')}\n")
+        self.details_text.insert(tk.END, f"Author: {item.get('author','')}\n")
+        self.details_text.insert(tk.END, f"Description: {item.get('description','')}\n")
+        self.details_text.insert(tk.END, f"URL: {item.get('url','')}\n")
