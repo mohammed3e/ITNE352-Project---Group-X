@@ -14,7 +14,7 @@ def fetch_headlines(param_name=None, param_value=None):
         if param_name and param_value:
             url = f"https://newsapi.org/v2/top-headlines?{param_name}={param_value}&pageSize=15&apiKey={NEWSAPI_KEY}"
         else:
-            url = f"https://newsapi.org/v2/top-headlines?pageSize=15&apiKey={NEWSAPI_KEY}"
+            url = f"https://newsapi.org/v2/top-headlines?country=us&pageSize=15&apiKey={NEWSAPI_KEY}"
         r = requests.get(url, timeout=8)
         data = r.json()
         if data.get("status") != "ok":
