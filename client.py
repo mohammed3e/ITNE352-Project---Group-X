@@ -53,7 +53,7 @@ class NewsClient:
         self.option_value_entry.grid(row=1, column=1, padx=5)
 
         tk.Button(options_frame, text="Run Search", command=self.run_option_search).grid(row=2, column=0, columnspan=2, pady=5)
-        
+
          # Results list
         self.listbox = tk.Listbox(root, width=50)
         self.listbox.pack()
@@ -84,3 +84,49 @@ class NewsClient:
 
         except Exception as e:
             messagebox.showerror("Error", f"Cannot connect: {e}")
+# NEW — Running selected option
+    def run_option_search(self):
+        if not self.connected:
+            messagebox.showwarning("Warning", "Connect first")
+            return
+
+        option = self.option_var.get()
+        value = self.option_value_entry.get().strip()
+
+        # 1) send: "Search headlines"
+        # 2) send: option
+        # 3) send: value 
+
+        try:
+            self.sock.sendall("Search headlines".encode())
+            self.sock.sendall(option.encode())
+
+            # only send value if needed
+            if option in ["Search for keywords", "Search by category", "Search by country"]:
+                if not value:
+                    messagebox.showwarning("Warning", "Enter a value (keyword/category/country)")
+                    return
+                self.sock.sendall(value.encode())
+            else:
+                # no value needed
+                pass
+
+            # Receive summary list
+            data = self.sock.recv(65535).decode()
+            summaries = json.loads(data)
+
+            self.listbox.delete(0, tk.END)
+            self.details_text.delete("1.0", tk.END)
+
+            if "error" in summaries:
+                self.listbox.insert(tk.END, summaries["error"])
+                return
+
+            self.items = summaries
+
+            for i, item in enumerate(self.items, start=1):
+                title = item.get("title", "No title")
+                self.listbox.insert(tk.END, f"{i}. {title}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Communication error: {e}")
