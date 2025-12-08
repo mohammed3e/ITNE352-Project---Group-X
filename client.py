@@ -74,7 +74,7 @@ class NewsClient:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((HOST, PORT))
 
-            # السيرفر يتوقع username كنص وليس JSON
+            
             self.sock.sendall(username.encode())
 
             self.connected = True
@@ -127,6 +127,39 @@ class NewsClient:
             for i, item in enumerate(self.items, start=1):
                 title = item.get("title", "No title")
                 self.listbox.insert(tk.END, f"{i}. {title}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Communication error: {e}")
+
+            
+            # Show details
+    def show_details(self, event):
+        if not self.items:
+            return
+
+        idx = self.listbox.curselection()
+        if not idx:
+            return
+
+        real_idx = idx[0] + 1
+
+        try:
+            self.sock.sendall(str(real_idx).encode())
+
+            data = self.sock.recv(65535).decode()
+            article = json.loads(data)
+
+            self.details_text.delete("1.0", tk.END)
+
+            if "error" in article:
+                self.details_text.insert(tk.END, article["error"])
+                return
+
+            self.details_text.insert(tk.END, f"Title: {article.get('title','')}\n")
+            self.details_text.insert(tk.END, f"Source: {article.get('source',{}).get('name','')}\n")
+            self.details_text.insert(tk.END, f"Author: {article.get('author','')}\n")
+            self.details_text.insert(tk.END, f"Description: {article.get('description','')}\n")
+            self.details_text.insert(tk.END, f"URL: {article.get('url','')}\n")
 
         except Exception as e:
             messagebox.showerror("Error", f"Communication error: {e}")
