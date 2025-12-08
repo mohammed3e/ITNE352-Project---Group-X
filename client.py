@@ -1,9 +1,10 @@
-import socket  
-import json    
-from tkinter import Tk, simpledialog, messagebox  
+import socket  # For network communication
+import json    # For encoding/decoding JSON data
+from tkinter import Tk, simpledialog, messagebox  # For GUI input/output
 
 HOST = '127.0.0.1'  
-PORT = 59999 
+PORT = 59999        
+
 root = Tk()
 root.withdraw()  # Hide the main Tkinter window
 
@@ -35,7 +36,7 @@ def gui_input(prompt):
         if res:
             return res  # Return input if provided
 
- # Function to show headlines and handle headline-related operations
+# Function to show headlines and handle headline-related operations
 def show_headlines(soc):
     soc.sendall("Search headlines".encode())  # Tell server we want headlines
     options = {
@@ -70,7 +71,7 @@ def show_headlines(soc):
             messagebox.showinfo("A1", f"Error: {summary['error']}")
             continue
 
-# Display list of headlines
+        # Display list of headlines
         headlines_text = "\n".join(
             f"{idx}. {item.get('title')} - {item.get('source')} (Author: {item.get('author')})"
             for idx, item in enumerate(summary, 1)
@@ -88,10 +89,12 @@ def show_headlines(soc):
             messagebox.showinfo("A1", f"Error: {details['error']}")
             continue
         if details:
-             # Build message showing full details of headline
+            # Corrected line to handle 'source' being dict or string
+            source_name = details.get('source')
+            if isinstance(source_name, dict):
+                source_name = source_name.get('name')
             detail_msg = (
-                f"Source: {details.get('source', {}).get('name') 
-if isinstance(details.get('source'), dict) else details.get('source')}/n"
+                f"Source: {source_name}\n"
                 f"Author: {details.get('author')}\n"
                 f"Title: {details.get('title')}\n"
                 f"Description: {details.get('description')}\n"
@@ -104,6 +107,7 @@ if isinstance(details.get('source'), dict) else details.get('source')}/n"
                     time = time.replace("Z", "")
                     detail_msg += f"Published Date: {date}\nPublished Time: {time}"
             messagebox.showinfo("A1", detail_msg)  # Show details in GUI
+
 # Function to show sources and handle source-related operations
 def show_sources(soc):
     soc.sendall("List of sources".encode())  # Request sources from server
@@ -163,7 +167,7 @@ def show_sources(soc):
                 f"URL: {details.get('url')}"
             )
             messagebox.showinfo("A1", detail_msg)
-            
+
 # Main function to connect to server and show main menu
 def main():
     user = gui_input("Enter your name:")  # Ask for username
