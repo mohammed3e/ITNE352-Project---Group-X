@@ -6,7 +6,7 @@ from tkinter import messagebox
 HOST = "127.0.0.1"
 PORT = 5000
 
-class SimpleNewsClient:
+class NewsClient:
     def __init__(self, root):
         self.root = root
         self.root.title("News Client")
@@ -104,5 +104,5 @@ class SimpleNewsClient:
         
 if __name__ == "__main__":
     root = tk.Tk()
-    app = SimpleNewsClient(root)
+    app = NewsClient(root)
     root.mainloop()
