@@ -42,10 +42,15 @@ This project implements a Python-based client-server system that exchanges infor
 
 To set up and run this project locally, make sure to install the following:
 
-1. **Python 3**: Download and install from [Python.org](https://www.python.org/).
+1.  Install Python 3.x (the newest version is 3.12) from the official Python website: https://www.python.org/downloads/
 
-2. **NewsAPI library**: Install via command line using:
-  
+2. Install the required Python packages by running the following command:
+
+```
+pip install requests 
+```
+
+3. Get an API key from news API website: https://NewsAPI.org and replace the "NEWSAPI_KEY" constant in the server.py file with your API key.
 
 
 ## How to
@@ -93,6 +98,7 @@ python client.py
 ### server.py
 
 **Main Functionalities**  
+
 The server:  
 - Accepts and manages multiple clients using multithreading  
 - Receives search requests (headlines or sources)  
@@ -147,6 +153,7 @@ The server:
 ### client.py
 
 **Main Functionalities**  
+
 The client:
 - Connects to the server
 - Sends user choices and search queries
@@ -201,16 +208,9 @@ The client:
        sock.sendall(json.dumps(data).encode())
    ```
 
-6. main()  
-   - Purpose: Main client logic:
-     - Shows GUI prompt for username
-     - Connects to server (HOST, PORT)
-     - Sends username to server
-     - Presents main menu (Search Headlines / List of Sources / Quit)
-     - Routes user choices to show_headlines() or show_sources()
-     - Sends EXIT on quit and closes socket
 
 **Responsibilities**
+
 - Take username and connect to server
 - Send user commands and queries
 - Receive and display results via Tkinter dialogs
@@ -218,16 +218,19 @@ The client:
 - Cleanly disconnect and notify server on exit
 
 **Additional Concepts**
+
 - Multithreading (server-side) for multiple clients
 - JSON communication (json.dumps / json.loads)
 - TCP sockets for client-server communication
 - Tkinter for simple GUI interaction (simpledialog, messagebox)
-- External API integration: server uses NewsAPI (requests.get with timeout)
+- External API integration: server uses NewsAPI (requests.get )
 
 ## Acknowledgments
+
 We  thank our instructor for the support and advice throughout the development of this project.
 We also appreciate NewsAPI.org for making real-time news data available, which was essential for building our system.
 
 ## Conclusion
+
 This project successfully demonstrates a working client-server application in Python. It combines network programming, multithreading, and API integration to allow multiple users to request and receive news at the same time.
 The project highlights how Python can be used to handle real-world tasks like fetching live data, managing concurrent connections, and presenting information to users in a simple and interactive way.
