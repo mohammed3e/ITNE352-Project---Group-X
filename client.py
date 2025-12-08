@@ -6,7 +6,10 @@ from tkinter import ttk, messagebox
 HOST = "127.0.0.1"
 PORT = 59999
 
-# Function to safely receive JSON from the server
+# Function to safely receive JSON data from the server.
+# The server may send data in multiple chunks, so we store
+# the data in a buffer until a full valid JSON object is received.
+
 def recv_json(sock):
     buffer = ""
     while True:
@@ -14,27 +17,32 @@ def recv_json(sock):
         if not chunk:
             return None
 
+        # Try decoding normally, fallback if needed
         try:
             buffer += chunk.decode('utf-8')
         except:
             buffer += chunk.decode('latin-1')
 
+        # Attempt to convert buffer to JSON
         try:
             return json.loads(buffer)
         except json.JSONDecodeError:
+            # If JSON is incomplete, continue receiving
             continue
 
 
-# Client GUI Class
+# Main Client GUI Class
+# Handles the user interface, communication with server,
+# and all client interaction logic.
 class NewsClientGUI:
     def __init__(self, master):
         self.master = master
         self.master.title("News Client - ITNE352 Project")
         self.master.geometry("650x520")
 
-        self.sock = None
+        self.sock = None  # Will hold socket connection to server
 
-        # --- Top Frame: User login ---
+        #  User Login Section
         self.top_frame = tk.Frame(master)
         self.top_frame.pack(pady=10)
 
@@ -42,10 +50,11 @@ class NewsClientGUI:
         self.username_entry = tk.Entry(self.top_frame, width=25)
         self.username_entry.grid(row=0, column=1, padx=5)
 
+        # Connect button that initializes connection with server
         self.connect_btn = tk.Button(self.top_frame, text="Connect", command=self.connect_to_server)
         self.connect_btn.grid(row=0, column=2, padx=5)
 
-        # --- Main Buttons Frame ---
+        #  Main Menu Buttons
         self.menu_frame = tk.Frame(master)
         self.menu_frame.pack(pady=10)
 
@@ -53,22 +62,25 @@ class NewsClientGUI:
                                        command=self.open_headlines_menu, state="disabled")
         self.sources_btn = tk.Button(self.menu_frame, text="List of Sources", width=20,
                                      command=self.open_sources_menu, state="disabled")
-        self.quit_btn = tk.Button(self.menu_frame, text="Quit", width=20, command=self.quit_app, state="disabled")
+        self.quit_btn = tk.Button(self.menu_frame, text="Quit", width=20,
+                                  command=self.quit_app, state="disabled")
 
         self.headlines_btn.grid(row=0, column=0, padx=5)
         self.sources_btn.grid(row=0, column=1, padx=5)
         self.quit_btn.grid(row=0, column=2, padx=5)
 
-        # --- Results Listbox ---
+        #  Results Listbox
+        # Displays headlines or sources returned from server
         self.results_box = tk.Listbox(master, width=90, height=12)
         self.results_box.pack(pady=10)
 
-        # --- Details Text Area ---
+        #  Details Text Box
         tk.Label(master, text="Details:", font=("Arial", 11, "bold")).pack()
         self.details_text = tk.Text(master, width=90, height=10)
         self.details_text.pack(pady=5)
 
-    # Connect to the server
+    # Establish connection with the server using socket
+    # Sends the username and enables menu buttons after connecting.
     def connect_to_server(self):
         username = self.username_entry.get().strip()
         if not username:
@@ -78,8 +90,11 @@ class NewsClientGUI:
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((HOST, PORT))
+
+            # Send username to server
             self.sock.sendall(username.encode())
 
+            # Enable menu buttons after successful connection
             self.headlines_btn.config(state="normal")
             self.sources_btn.config(state="normal")
             self.quit_btn.config(state="normal")
@@ -90,8 +105,7 @@ class NewsClientGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to connect: {e}")
 
-    # Headlines menu logic
-    
+    # Open sub-menu for headline search options
     def open_headlines_menu(self):
         menu = tk.Toplevel(self.master)
         menu.title("Headlines Menu")
@@ -109,6 +123,8 @@ class NewsClientGUI:
 
         tk.Button(menu, text="Close", command=menu.destroy).pack(pady=10)
 
+    # Handle selected headline search option
+    # Sends the required command/value to the server
     def headlines_option(self, option_text):
         self.results_box.delete(0, tk.END)
         self.details_text.delete("1.0", tk.END)
@@ -116,14 +132,17 @@ class NewsClientGUI:
         self.sock.sendall("Search headlines".encode())
         self.sock.sendall(option_text.encode())
 
-        # If value required
+        # Options that require user input (keyword, category, country)
         if option_text in ["Search for keywords", "Search by category", "Search by country"]:
             val = self.simple_input(f"Enter value for {option_text}:")
             if not val:
                 return
             self.sock.sendall(val.encode())
 
+        # Receive headline results from server
         summary = recv_json(self.sock)
+
+        # If server returned an error message
         if isinstance(summary, dict) and summary.get("error"):
             messagebox.showinfo("Error", summary["error"])
             return
@@ -131,7 +150,7 @@ class NewsClientGUI:
         self.display_list(summary, is_headline=True)
 
     
-    # Sources menu logic
+    # Open sub-menu for sources search options
     def open_sources_menu(self):
         menu = tk.Toplevel(self.master)
         menu.title("Sources Menu")
@@ -149,6 +168,7 @@ class NewsClientGUI:
 
         tk.Button(menu, text="Close", command=menu.destroy).pack(pady=10)
 
+    # Handle selected sources option and request data from server
     def sources_option(self, option_text):
         self.results_box.delete(0, tk.END)
         self.details_text.delete("1.0", tk.END)
@@ -156,7 +176,7 @@ class NewsClientGUI:
         self.sock.sendall("List of sources".encode())
         self.sock.sendall(option_text.encode())
 
-        # If value required
+        # If option requires a user-entered value
         if option_text in ["Search by category", "Search by country", "Search by language"]:
             val = self.simple_input(f"Enter value for {option_text}:")
             if not val:
@@ -164,13 +184,16 @@ class NewsClientGUI:
             self.sock.sendall(val.encode())
 
         summary = recv_json(self.sock)
+
+        # Check if server returned an error
         if isinstance(summary, dict) and summary.get("error"):
             messagebox.showinfo("Error", summary["error"])
             return
 
         self.display_list(summary, is_headline=False)
 
-    # Displaying results in Listbox
+    # Display items (headlines or sources) in the Listbox
+    # Also binds double-click event to show details
     def display_list(self, summary, is_headline):
         self.results_box.delete(0, tk.END)
         
@@ -180,16 +203,18 @@ class NewsClientGUI:
             else:
                 self.results_box.insert(tk.END, f"{idx}. {item.get('name')}")
 
-        # Bind click
+        # Bind double-click event to load details
         self.results_box.bind("<Double-1>", lambda event: self.get_details(is_headline))
 
-    # Get details when listbox item is clicked
+    # Request the detailed info of one selected item from server
     def get_details(self, is_headline):
         index = self.results_box.curselection()
         if not index:
             return
 
         idx = index[0] + 1
+
+        # Send index to server to request details
         self.sock.sendall(str(idx).encode())
 
         details = recv_json(self.sock)
@@ -198,8 +223,8 @@ class NewsClientGUI:
 
         self.details_text.delete("1.0", tk.END)
 
+        # Format output based on type (headline or source)
         if is_headline:
-            # Display headline details
             source = details.get("source", {})
             if isinstance(source, dict):
                 source = source.get("name")
@@ -218,7 +243,6 @@ class NewsClientGUI:
                 text += f"Published Date: {date}\nPublished Time: {time}\n"
 
         else:
-            # Display source details
             text = (
                 f"Name: {details.get('name')}\n"
                 f"Country: {details.get('country')}\n"
@@ -230,7 +254,8 @@ class NewsClientGUI:
 
         self.details_text.insert(tk.END, text)
 
-    # Simple popup input
+    # Popup window to ask user for a single input value
+    # Used for keyword/category/country searches
     def simple_input(self, message):
         top = tk.Toplevel(self.master)
         top.title("Input")
@@ -248,8 +273,7 @@ class NewsClientGUI:
         top.wait_window()
         return result["val"]
 
-    
-    # Quit logic
+    # Cleanly close the client and notify server
     def quit_app(self):
         if self.sock:
             try:
@@ -260,7 +284,7 @@ class NewsClientGUI:
 
 
 
-# Start GUI
+# Start GUI Application
 
 if __name__ == "__main__":
     root = tk.Tk()
