@@ -163,3 +163,27 @@ def show_sources(soc):
                 f"URL: {details.get('url')}"
             )
             messagebox.showinfo("A1", detail_msg)
+            
+# Main function to connect to server and show main menu
+def main():
+    user = gui_input("Enter your name:")  # Ask for username
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as soc:
+        soc.connect((HOST, PORT))  # Connect to server
+        soc.sendall(user.encode())  # Send username
+
+        while True:
+            choice = gui_input("Main Menu:\n1- Search headlines\n2- List of sources\n3- Quit")
+            if choice == "1":
+                show_headlines(soc)
+            elif choice == "2":
+                show_sources(soc)
+            elif choice == "3":
+                soc.sendall("EXIT".encode())  # Notify server of exit
+                messagebox.showinfo("A1", "Disconnected from server.")
+                break
+            else:
+                messagebox.showinfo("A1", "Invalid choice.")
+
+# Run main function when executed directly
+if __name__ == "__main__":  
+    main()
