@@ -1,292 +1,251 @@
-import socket
 import json
-import tkinter as tk
-from tkinter import ttk, messagebox
+import socket  # Needed for client-server communication
+from tkinter import Tk, simpledialog, messagebox
 
-HOST = "127.0.0.1"
-PORT = 59999
+#  Configuration 
+HOST = '127.0.0.1'  # Server IP address
+PORT = 59999        # Server port
 
-# Function to safely receive JSON data from the server.
-# The server may send data in multiple chunks, so we store
-# the data in a buffer until a full valid JSON object is received.
+# Hide the main Tkinter window because we only use dialog boxes
+root = Tk()
+root.withdraw()
 
+#  Utility Functions 
 def recv_json(sock):
+    """
+    Receive a JSON object safely from the server.
+    Handles:
+    - Chunked data (multiple recv calls)
+    - Different text encodings
+    - Incomplete JSON
+    Returns:
+    - Python object if successful
+    - None if connection closed or invalid JSON
+    """
     buffer = ""
     while True:
-        chunk = sock.recv(4096)
-        if not chunk:
-            return None
-
-        # Try decoding normally, fallback if needed
+        chunk = sock.recv(4096)  # Receive data from socket
+        if not chunk:  # Connection closed
+            if buffer == "":
+                return None
+            try:
+                return json.loads(buffer)
+            except:
+                return None
         try:
-            buffer += chunk.decode('utf-8')
+            buffer += chunk.decode('utf-8')  # Try UTF-8 decoding
         except:
-            buffer += chunk.decode('latin-1')
-
-        # Attempt to convert buffer to JSON
+            buffer += chunk.decode('latin-1')  # Fallback decoding
         try:
-            return json.loads(buffer)
+            return json.loads(buffer)  # Try to parse JSON
         except json.JSONDecodeError:
-            # If JSON is incomplete, continue receiving
+            continue  # Wait for more data if JSON incomplete
+
+def gui_input(prompt):
+    """
+    Show a simple input dialog to the user.
+    Keeps asking until non-empty input is given.
+    """
+    while True:
+        res = simpledialog.askstring("A1", prompt)
+        if res:
+            return res
+
+#  Headlines Menu 
+def show_headlines(soc):
+    """
+    Handle the Headlines menu:
+    - Send headline search request to server.
+    - Present menu options to the user.
+    - Receive a list of headlines from server.
+    - Allow user to select a headline to see details.
+    """
+    soc.sendall("Search headlines".encode())  # Notify server about headlines menu
+
+    # Map menu options
+    options = {
+        "1": "Search for keywords",
+        "2": "Search by category",
+        "3": "Search by country",
+        "4": "List all new headlines",
+        "5": "Back to the main menu"
+    }
+
+    while True:
+        # Ask user to choose an option
+        choice = gui_input(
+            "Headlines Menu:\n1- Search for keywords\n2- Search by category\n3- Search by country\n4- List all new headlines\n5- Back to main menu"
+        )
+        option_text = options.get(choice)
+        if not option_text:  # Invalid choice
+            messagebox.showinfo("A1", "Invalid option")
+            continue
+        if option_text == "Back to the main menu":
+            break
+
+        soc.sendall(option_text.encode())  # Send the selected option to server
+
+        # Ask for additional input if required
+        value = None
+        if option_text in ["Search for keywords", "Search by category", "Search by country"]:
+            value = gui_input(f"Enter value for {option_text}")
+            soc.sendall(value.encode())
+
+        # Receive list of headlines from server
+        summary = recv_json(soc)
+        if summary is None:
+            messagebox.showinfo("A1", "Server closed connection or invalid response.")
+            return
+        if isinstance(summary, dict) and summary.get("error"):
+            messagebox.showinfo("A1", f"Error: {summary['error']}")
             continue
 
+        # Display headlines in a numbered list
+        headlines_text = "\n".join(
+            f"{idx}. {item.get('title')} - {item.get('source')} (Author: {item.get('author')})"
+            for idx, item in enumerate(summary, 1)
+        )
 
-# Main Client GUI Class
-# Handles the user interface, communication with server,
-# and all client interaction logic.
-class NewsClientGUI:
-    def __init__(self, master):
-        self.master = master
-        self.master.title("News Client - ITNE352 Project")
-        self.master.geometry("650x520")
+        # Ask user to select a headline for details
+        idx_input = gui_input(
+            f"Headlines List:\n{headlines_text}\n\nEnter the number to see full details (or 0 to skip):"
+        )
+        if idx_input == "":
+            idx_input = "0"
+        soc.sendall(idx_input.encode())  # Send selection to server
 
-        self.sock = None  # Will hold socket connection to server
-
-        #  User Login Section
-        self.top_frame = tk.Frame(master)
-        self.top_frame.pack(pady=10)
-
-        tk.Label(self.top_frame, text="Enter your name:", font=("Arial", 11)).grid(row=0, column=0)
-        self.username_entry = tk.Entry(self.top_frame, width=25)
-        self.username_entry.grid(row=0, column=1, padx=5)
-
-        # Connect button that initializes connection with server
-        self.connect_btn = tk.Button(self.top_frame, text="Connect", command=self.connect_to_server)
-        self.connect_btn.grid(row=0, column=2, padx=5)
-
-        #  Main Menu Buttons
-        self.menu_frame = tk.Frame(master)
-        self.menu_frame.pack(pady=10)
-
-        self.headlines_btn = tk.Button(self.menu_frame, text="Search Headlines", width=20,
-                                       command=self.open_headlines_menu, state="disabled")
-        self.sources_btn = tk.Button(self.menu_frame, text="List of Sources", width=20,
-                                     command=self.open_sources_menu, state="disabled")
-        self.quit_btn = tk.Button(self.menu_frame, text="Quit", width=20,
-                                  command=self.quit_app, state="disabled")
-
-        self.headlines_btn.grid(row=0, column=0, padx=5)
-        self.sources_btn.grid(row=0, column=1, padx=5)
-        self.quit_btn.grid(row=0, column=2, padx=5)
-
-        #  Results Listbox
-        # Displays headlines or sources returned from server
-        self.results_box = tk.Listbox(master, width=90, height=12)
-        self.results_box.pack(pady=10)
-
-        #  Details Text Box
-        tk.Label(master, text="Details:", font=("Arial", 11, "bold")).pack()
-        self.details_text = tk.Text(master, width=90, height=10)
-        self.details_text.pack(pady=5)
-
-    # Establish connection with the server using socket
-    # Sends the username and enables menu buttons after connecting.
-    def connect_to_server(self):
-        username = self.username_entry.get().strip()
-        if not username:
-            messagebox.showinfo("Error", "Please enter a username.")
+        # Receive full details of selected headline
+        details = recv_json(soc)
+        if details is None:
+            messagebox.showinfo("A1", "Server closed connection or invalid response.")
             return
+        if isinstance(details, dict) and details.get("error"):
+            messagebox.showinfo("A1", f"Error: {details['error']}")
+            continue
 
-        try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect((HOST, PORT))
-
-            # Send username to server
-            self.sock.sendall(username.encode())
-
-            # Enable menu buttons after successful connection
-            self.headlines_btn.config(state="normal")
-            self.sources_btn.config(state="normal")
-            self.quit_btn.config(state="normal")
-            self.connect_btn.config(state="disabled")
-
-            messagebox.showinfo("Connected", "Successfully connected to the server.")
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to connect: {e}")
-
-    # Open sub-menu for headline search options
-    def open_headlines_menu(self):
-        menu = tk.Toplevel(self.master)
-        menu.title("Headlines Menu")
-        menu.geometry("300x260")
-
-        options = [
-            ("Search for keywords", self.headlines_option),
-            ("Search by category", self.headlines_option),
-            ("Search by country", self.headlines_option),
-            ("List all new headlines", self.headlines_option),
-        ]
-
-        for text, cmd in options:
-            tk.Button(menu, text=text, width=25, command=lambda t=text: cmd(t)).pack(pady=5)
-
-        tk.Button(menu, text="Close", command=menu.destroy).pack(pady=10)
-
-    # Handle selected headline search option
-    # Sends the required command/value to the server
-    def headlines_option(self, option_text):
-        self.results_box.delete(0, tk.END)
-        self.details_text.delete("1.0", tk.END)
-
-        self.sock.sendall("Search headlines".encode())
-        self.sock.sendall(option_text.encode())
-
-        # Options that require user input (keyword, category, country)
-        if option_text in ["Search for keywords", "Search by category", "Search by country"]:
-            val = self.simple_input(f"Enter value for {option_text}:")
-            if not val:
-                return
-            self.sock.sendall(val.encode())
-
-        # Receive headline results from server
-        summary = recv_json(self.sock)
-
-        # If server returned an error message
-        if isinstance(summary, dict) and summary.get("error"):
-            messagebox.showinfo("Error", summary["error"])
-            return
-
-        self.display_list(summary, is_headline=True)
-
-    
-    # Open sub-menu for sources search options
-    def open_sources_menu(self):
-        menu = tk.Toplevel(self.master)
-        menu.title("Sources Menu")
-        menu.geometry("300x260")
-
-        options = [
-            ("Search by category", self.sources_option),
-            ("Search by country", self.sources_option),
-            ("Search by language", self.sources_option),
-            ("List all", self.sources_option),
-        ]
-
-        for text, cmd in options:
-            tk.Button(menu, text=text, width=25, command=lambda t=text: cmd(t)).pack(pady=5)
-
-        tk.Button(menu, text="Close", command=menu.destroy).pack(pady=10)
-
-    # Handle selected sources option and request data from server
-    def sources_option(self, option_text):
-        self.results_box.delete(0, tk.END)
-        self.details_text.delete("1.0", tk.END)
-
-        self.sock.sendall("List of sources".encode())
-        self.sock.sendall(option_text.encode())
-
-        # If option requires a user-entered value
-        if option_text in ["Search by category", "Search by country", "Search by language"]:
-            val = self.simple_input(f"Enter value for {option_text}:")
-            if not val:
-                return
-            self.sock.sendall(val.encode())
-
-        summary = recv_json(self.sock)
-
-        # Check if server returned an error
-        if isinstance(summary, dict) and summary.get("error"):
-            messagebox.showinfo("Error", summary["error"])
-            return
-
-        self.display_list(summary, is_headline=False)
-
-    # Display items (headlines or sources) in the Listbox
-    # Also binds double-click event to show details
-    def display_list(self, summary, is_headline):
-        self.results_box.delete(0, tk.END)
-        
-        for idx, item in enumerate(summary, 1):
-            if is_headline:
-                self.results_box.insert(tk.END, f"{idx}. {item.get('title')} ({item.get('source')})")
-            else:
-                self.results_box.insert(tk.END, f"{idx}. {item.get('name')}")
-
-        # Bind double-click event to load details
-        self.results_box.bind("<Double-1>", lambda event: self.get_details(is_headline))
-
-    # Request the detailed info of one selected item from server
-    def get_details(self, is_headline):
-        index = self.results_box.curselection()
-        if not index:
-            return
-
-        idx = index[0] + 1
-
-        # Send index to server to request details
-        self.sock.sendall(str(idx).encode())
-
-        details = recv_json(self.sock)
-        if not details:
-            return
-
-        self.details_text.delete("1.0", tk.END)
-
-        # Format output based on type (headline or source)
-        if is_headline:
-            source = details.get("source", {})
-            if isinstance(source, dict):
-                source = source.get("name")
-
-            text = (
-                f"Source: {source}\n"
+        # Format and display headline details
+        if details:
+            detail_msg = (
+                f"Source: {details.get('source', {}).get('name') if isinstance(details.get('source'), dict) else details.get('source')}\n"
                 f"Author: {details.get('author')}\n"
                 f"Title: {details.get('title')}\n"
                 f"Description: {details.get('description')}\n"
                 f"URL: {details.get('url')}\n"
             )
-
             if details.get("publishedAt"):
-                date, time = details["publishedAt"].split("T")
-                time = time.replace("Z", "")
-                text += f"Published Date: {date}\nPublished Time: {time}\n"
+                parts = details["publishedAt"].split("T")
+                if len(parts) == 2:
+                    date, time = parts
+                    time = time.replace("Z", "")
+                    detail_msg += f"Published Date: {date}\nPublished Time: {time}"
+            messagebox.showinfo("A1", detail_msg)
 
-        else:
-            text = (
+#  Sources Menu 
+def show_sources(soc):
+    """
+    Handle the Sources menu:
+    - Send source list request to server.
+    - Present menu options to the user.
+    - Receive a list of sources from server.
+    - Allow user to select a source to see details.
+    """
+    soc.sendall("List of sources".encode())  # Notify server about sources menu
+
+    # Map menu options
+    options = {
+        "1": "Search by category",
+        "2": "Search by country",
+        "3": "Search by language",
+        "4": "List all",
+        "5": "Back to the main menu"
+    }
+
+    while True:
+        # Ask user to choose an option
+        choice = gui_input(
+            "Sources Menu:\n1- Search by category\n2- Search by country\n3- Search by language\n4- List all\n5- Back to main menu"
+        )
+        option_text = options.get(choice)
+        if not option_text:
+            messagebox.showinfo("A1", "Invalid option")
+            continue
+        if option_text == "Back to the main menu":
+            break
+
+        soc.sendall(option_text.encode())  # Send selected option to server
+
+        # Ask for additional input if required
+        value = None
+        if option_text in ["Search by category", "Search by country", "Search by language"]:
+            value = gui_input(f"Enter value for {option_text}")
+            soc.sendall(value.encode())
+
+        # Receive list of sources from server
+        summary = recv_json(soc)
+        if summary is None:
+            messagebox.showinfo("A1", "Server closed connection or invalid response.")
+            return
+        if isinstance(summary, dict) and summary.get("error"):
+            messagebox.showinfo("A1", f"Error: {summary['error']}")
+            continue
+
+        # Display sources in a numbered list
+        sources_text = "\n".join(f"{idx}. {item.get('name')}" for idx, item in enumerate(summary, 1))
+
+        # Ask user to select a source for details
+        idx_input = gui_input(f"Sources List:\n{sources_text}\n\nEnter number for details (0 to skip):")
+        if idx_input == "":
+            idx_input = "0"
+        soc.sendall(idx_input.encode())
+
+        # Receive full details of selected source
+        details = recv_json(soc)
+        if details is None:
+            messagebox.showinfo("A1", "Server closed connection or invalid response.")
+            return
+        if isinstance(details, dict) and details.get("error"):
+            messagebox.showinfo("A1", f"Error: {details['error']}")
+            continue
+
+        # Format and display source details
+        if details:
+            detail_msg = (
                 f"Name: {details.get('name')}\n"
                 f"Country: {details.get('country')}\n"
                 f"Category: {details.get('category')}\n"
                 f"Language: {details.get('language')}\n"
                 f"Description: {details.get('description')}\n"
-                f"URL: {details.get('url')}\n"
+                f"URL: {details.get('url')}"
             )
+            messagebox.showinfo("A1", detail_msg)
 
-        self.details_text.insert(tk.END, text)
+# ---------------- Main Function ----------------
+def main():
+    """
+    Main program:
+    - Ask for username.
+    - Connect to server.
+    - Show main menu: Headlines, Sources, Quit.
+    """
+    user = gui_input("Enter your name:")
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as soc:
+        soc.connect((HOST, PORT))  # Connect to server
+        soc.sendall(user.encode())  # Send username
 
-    # Popup window to ask user for a single input value
-    # Used for keyword/category/country searches
-    def simple_input(self, message):
-        top = tk.Toplevel(self.master)
-        top.title("Input")
-        tk.Label(top, text=message).pack(pady=5)
-        entry = tk.Entry(top, width=30)
-        entry.pack(pady=5)
+        while True:
+            # Main menu
+            choice = gui_input("Main Menu:\n1- Search headlines\n2- List of sources\n3- Quit")
+            if choice == "1":
+                show_headlines(soc)  # Open headlines menu
+            elif choice == "2":
+                show_sources(soc)    # Open sources menu
+            elif choice == "3":
+                soc.sendall("EXIT".encode())  # Inform server to disconnect
+                messagebox.showinfo("A1", "Disconnected from server.")
+                break
+            else:
+                messagebox.showinfo("A1", "Invalid choice.")
 
-        result = {"val": None}
-
-        def submit():
-            result["val"] = entry.get().strip()
-            top.destroy()
-
-        tk.Button(top, text="OK", command=submit).pack(pady=5)
-        top.wait_window()
-        return result["val"]
-
-    # Cleanly close the client and notify server
-    def quit_app(self):
-        if self.sock:
-            try:
-                self.sock.sendall("EXIT".encode())
-            except:
-                pass
-        self.master.destroy()
-
-
-
-# Start GUI Application
-
+#  Start Program 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = NewsClientGUI(root)
-    root.mainloop()
+    main()
