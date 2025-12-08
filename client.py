@@ -69,3 +69,38 @@ def show_headlines(soc):
         if isinstance(summary, dict) and summary.get("error"):
             messagebox.showinfo("A1", f"Error: {summary['error']}")
             continue
+
+# Display list of headlines
+        headlines_text = "\n".join(
+            f"{idx}. {item.get('title')} - {item.get('source')} (Author: {item.get('author')})"
+            for idx, item in enumerate(summary, 1)
+        )
+        idx_input = gui_input(f"Headlines List:\n{headlines_text}\n\nEnter the number to see full details (or 0 to skip):")
+        if idx_input == "":
+            idx_input = "0"
+        soc.sendall(idx_input.encode())
+
+        details = recv_json(soc)  # Get detailed info of selected headline
+        if details is None:
+            messagebox.showinfo("A1", "Server closed connection or invalid response.")
+            return
+        if isinstance(details, dict) and details.get("error"):
+            messagebox.showinfo("A1", f"Error: {details['error']}")
+            continue
+        if details:
+             # Build message showing full details of headline
+            detail_msg = (
+                f"Source: {details.get('source', {}).get('name') 
+if isinstance(details.get('source'), dict) else details.get('source')}\n"
+                f"Author: {details.get('author')}\n"
+                f"Title: {details.get('title')}\n"
+                f"Description: {details.get('description')}\n"
+                f"URL: {details.get('url')}\n"
+            )
+            if details.get("publishedAt"):
+                parts = details["publishedAt"].split("T")
+                if len(parts) == 2:
+                    date, time = parts
+                    time = time.replace("Z", "")
+                    detail_msg += f"Published Date: {date}\nPublished Time: {time}"
+            messagebox.showinfo("A1", detail_msg)  # Show details in GUI
