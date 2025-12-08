@@ -26,95 +26,30 @@ class NewsClient:
         self.status_label = tk.Label(root, text="Not connected", fg="red")
         self.status_label.pack()
         
-        #  Connection section 
-        tk.Label(root, text="Username:").pack()
-        self.username_entry = tk.Entry(root)
-        self.username_entry.pack()
+       # OPTIONS MENU (NEW)
+        options_frame = tk.LabelFrame(root, text="Headlines Options")
+        options_frame.pack(pady=10)
 
-        self.connect_btn = tk.Button(root, text="Connect", command=self.connect)
-        self.connect_btn.pack()
+        tk.Label(options_frame, text="Select Option:").grid(row=0, column=0, padx=5)
 
-        self.status_label = tk.Label(root, text="Not connected", fg="red")
-        self.status_label.pack()
+        self.option_var = tk.StringVar()
+        self.option_menu = ttk.Combobox(
+            options_frame,
+            textvariable=self.option_var,
+            values=[
+                "Search for keywords",
+                "Search by category",
+                "Search by country",
+                "List all new headlines"
+            ],
+            state="readonly",
+            width=30
+        )
+        self.option_menu.grid(row=0, column=1, padx=5)
+        self.option_menu.current(0)
 
-        #  Search section 
-        tk.Label(root, text="Keyword:").pack()
-        self.keyword_entry = tk.Entry(root)
-        self.keyword_entry.pack()
+        tk.Label(options_frame, text="Value:").grid(row=1, column=0, padx=5)
+        self.option_value_entry = tk.Entry(options_frame)
+        self.option_value_entry.grid(row=1, column=1, padx=5)
 
-        self.search_btn = tk.Button(root, text="Search Headlines", command=self.search_headlines)
-        self.search_btn.pack()
-# Results section 
-        self.listbox = tk.Listbox(root, width=50)
-        self.listbox.pack()
-        self.listbox.bind("<<ListboxSelect>>", self.show_details)
-
-        self.details_text = tk.Text(root, height=10, width=50)
-        self.details_text.pack()
-    # Connect to the server
-    def connect(self):
-        username = self.username_entry.get().strip()
-        if not username:
-            messagebox.showwarning("Warning", "Enter username")
-            return
-        try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect((HOST, PORT))
-            self.sock.sendall(json.dumps({"username": username}).encode())
-            self.connected = True
-            self.status_label.config(text="Connected", fg="green")
-            self.connect_btn.config(state="disabled")
-            self.username_entry.config(state="disabled")
-        except Exception as e:
-            messagebox.showerror("Error", f"Cannot connect: {e}")
-
-    # Send a request to the server
-    def send_request(self, action, params=None):
-        if not self.connected:
-            messagebox.showwarning("Warning", "Connect first")
-            return None
-        if params is None:
-            params = {}
-        try:
-            self.sock.sendall(json.dumps({"action": action, "params": params}).encode())
-            data = self.sock.recv(65535)
-            return json.loads(data.decode())
-        except Exception as e:
-            messagebox.showerror("Error", f"Communication error: {e}")
-            return None
-         # Search headlines by keyword
-    def search_headlines(self):
-        kw = self.keyword_entry.get().strip()
-        if not kw:
-            messagebox.showwarning("Warning", "Enter keyword")
-            return
-        resp = self.send_request("headlines_keyword", {"keyword": kw})
-        self.listbox.delete(0, tk.END)
-        self.details_text.delete("1.0", tk.END)
-        self.items = resp.get("items", []) if resp else []
-        if not self.items:
-            self.listbox.insert(tk.END, "No results found")
-        for item in self.items:
-            self.listbox.insert(tk.END, item.get("title", ""))
-
-    # Show details when selecting an item
-    def show_details(self, event):
-        if not self.items:
-            return
-        idx = self.listbox.curselection()
-        if not idx:
-            return
-        item = self.items[idx[0]]
-        self.details_text.delete("1.0", tk.END)
-        self.details_text.insert(tk.END, f"Title: {item.get('title','')}\n")
-        self.details_text.insert(tk.END, f"Source: {item.get('source_name','')}\n")
-        self.details_text.insert(tk.END, f"Author: {item.get('author','')}\n")
-        self.details_text.insert(tk.END, f"Description: {item.get('description','')}\n")
-        self.details_text.insert(tk.END, f"URL: {item.get('url','')}\n")
-
-        
-  # Start the app when the script is run directly
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = NewsClient(root)
-    root.mainloop()
+        tk.Button(options_frame, text="Run Search", command=self.run_option_search).grid(row=2, column=0, columnspan=2, pady=5)
