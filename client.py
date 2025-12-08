@@ -53,3 +53,34 @@ class NewsClient:
         self.option_value_entry.grid(row=1, column=1, padx=5)
 
         tk.Button(options_frame, text="Run Search", command=self.run_option_search).grid(row=2, column=0, columnspan=2, pady=5)
+        
+         # Results list
+        self.listbox = tk.Listbox(root, width=50)
+        self.listbox.pack()
+        self.listbox.bind("<<ListboxSelect>>", self.show_details)
+
+        self.details_text = tk.Text(root, height=10, width=50)
+        self.details_text.pack()
+
+
+    # Connect
+    def connect(self):
+        username = self.username_entry.get().strip()
+        if not username:
+            messagebox.showwarning("Warning", "Enter username")
+            return
+
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.connect((HOST, PORT))
+
+            # السيرفر يتوقع username كنص وليس JSON
+            self.sock.sendall(username.encode())
+
+            self.connected = True
+            self.status_label.config(text="Connected", fg="green")
+            self.connect_btn.config(state="disabled")
+            self.username_entry.config(state="disabled")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Cannot connect: {e}")
