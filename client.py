@@ -86,6 +86,9 @@ def show_headlines(soc):
         soc.sendall(option_text.encode())  # Send the selected option to server
 
         # Ask for additional input if required
+        # --- Handle options that require additional user input ---
+        # This block asks the user for extra information based on the selected option
+        # and sends the input value to the server
         value = None
         if option_text in ["Search for keywords", "Search by category", "Search by country"]:
             value = gui_input(f"Enter value for {option_text}")
@@ -175,6 +178,9 @@ def show_sources(soc):
         soc.sendall(option_text.encode())  # Send selected option to server
 
         # Ask for additional input if required
+        # --- Handle options that require additional user input ---
+        # This block asks the user for extra information based on the selected option
+        # and sends the input value to the server
         value = None
         if option_text in ["Search by category", "Search by country", "Search by language"]:
             value = gui_input(f"Enter value for {option_text}")
