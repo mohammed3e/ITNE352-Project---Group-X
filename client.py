@@ -240,5 +240,5 @@ def main():
                 messagebox.showinfo("A1", "Invalid choice.")
 
 #  Start Program 
-if __name__ == "_main_":
+if __name__ == "__main__":
     main()
